@@ -63,9 +63,10 @@ kubectl --context ${CONTEXT} -n argocd patch secret argocd-secret \
   }}'
 ```
 
-At this point, we should be able to access our argocd server using port-forward at localhost:8080
+## Navigating to argocd UI
+At this point, we should be able to access our argocd server using port-forward at localhost:8080. Dont forget to input the context you want to view
 ```
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl port-forward svc/argocd-server -n argocd 8080:443 --context <CONTEXT>
 ```
 
 ## Installing Gloo Mesh
