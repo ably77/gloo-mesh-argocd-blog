@@ -580,7 +580,7 @@ kubectl port-forward -n gloo-mesh svc/dashboard 8090
 ```
 
 At this point, you should have Gloo Mesh installed and two clusters with Istio registered to Gloo Mesh!
-![](https://github.com/solo-io/gitops-library/blob/main/images/gm1.png)
+![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/gm1.png)
 
 ## Deploy and Configure your VirtualMesh
 Deploy VirtualMesh to mgmt cluster to unify our two meshes on `cluster1` and `cluster2`
@@ -610,7 +610,7 @@ EOF
 ```
 
 At this point, if you navigate back to the gloo-mesh dashboard to the Meshes tab we should see that a virtual-mesh has been successfully deployed across our two clusters!
-![](https://github.com/solo-io/gitops-library/blob/main/images/gm2.png)
+![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/gm2.png)
 
 # Conclusions and Next Steps
 Now that we have deployed all of the necessary infrastructure components for multicluster service mesh, stay tuned for part 2 of this blog series where we will expand upon this base using the bookinfo application to demonstrate advanced traffic routing, policies, and observability across multiple clusters/meshes!
