@@ -93,6 +93,12 @@ cluster1=https://34.72.236.239
 cluster2=https://199.223.234.166
 ```
 
+## Provide License Key variable
+Gloo Mesh Enterprise requires a Trial License Key:
+```
+LICENSE_KEY=<input_license_key_here>
+```
+
 ## Installing Gloo Mesh
 Gloo Mesh can be installed and configured easily using Helm + Argocd. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply add in your license key to the YAML below and deploy away! 
 
@@ -115,7 +121,7 @@ spec:
     chart: gloo-mesh-enterprise
     helm:
       values: |
-        licenseKey: $LICENSE_KEY
+        licenseKey: ${LICENSE_KEY}
     repoURL: https://storage.googleapis.com/gloo-mesh-enterprise/gloo-mesh-enterprise
     targetRevision: 1.2.1
   syncPolicy:
@@ -147,7 +153,7 @@ kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: istio-operator-helm
+  name: istio-operator-helm-cluster1
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
@@ -163,7 +169,7 @@ spec:
     helm:
       parameters:
         - name: "hub"
-          value: "docker.io/istio"
+          value: "gcr.io/istio-enterprise"
         - name: "tag"
           value: "1.11.4"
         - name: "operatorNamespace"
@@ -191,7 +197,7 @@ kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: istio-operator-helm
+  name: istio-operator-helm-cluster2
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
@@ -207,7 +213,7 @@ spec:
     helm:
       parameters:
         - name: "hub"
-          value: "docker.io/istio"
+          value: "gcr.io/istio-enterprise"
         - name: "tag"
           value: "1.11.4"
         - name: "operatorNamespace"
@@ -376,61 +382,6 @@ Check to see that istio has been deployed
 NAME                                    READY   STATUS    RESTARTS   AGE
 istiod-869d56698-54hzf                  1/1     Running   0          100s
 istio-ingressgateway-7cf4cd6fc6-trt9h   1/1     Running   0          70s
-```
-
-## Enforce mTLS in our Istio Deployments
-The Istio default install sets mTLS to `PERMISSIVE` mode. Let's enforce `STRICT` mode instead
-
-For cluster1:
-```
-kubectl apply --context mgmt -f- <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: strict-mtls-cluster1
-  namespace: argocd
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/solo-io/gitops-library
-    targetRevision: HEAD
-    path: istio/overlay/mtls/strict/
-  destination:
-    server: ${cluster1}
-    namespace: istio-system
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
-EOF
-```
-
-For cluster2
-```
-kubectl apply --context mgmt -f- <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: strict-mtls-cluster2
-  namespace: argocd
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/solo-io/gitops-library
-    targetRevision: HEAD
-    path: istio/overlay/mtls/strict/
-  destination:
-    server: ${cluster2}
-    namespace: istio-system
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
-EOF
 ```
 
 ## Register your clusters to Gloo Mesh with Helm + argocd
