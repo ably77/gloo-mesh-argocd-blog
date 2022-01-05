@@ -387,7 +387,7 @@ kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: strict-mtls
+  name: strict-mtls-cluster1
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
@@ -413,7 +413,7 @@ kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: strict-mtls
+  name: strict-mtls-cluster2
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
