@@ -15,7 +15,7 @@ In this blog we will walk through the following steps
 - Explore the Gloo Mesh Dashboard
 
 ## High Level Architecture
-![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/arch1.png)
+![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/arch2.png)
 
 ## Prerequisites
 The tutorial is intended to be demonstrated using three kubernetes clusters. The instructions have been tested on GKE. The scope of this guide does not cover the installation and setup of kubernetes, and expects users to provide this as a prerequisite. The instructions below expect the cluster contexts to be `mgmt`, `cluster1`, and `cluster2`. An example output below:
