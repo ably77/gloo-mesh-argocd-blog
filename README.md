@@ -1,44 +1,43 @@
 # GitOps with ArgoCD and Gloo Mesh (part 1)
 
 # Introduction
-GitOps is becoming increasingly popular approach to manage Kubernetes components. It works by using Git as a single source of truth for declarative infrastructure and applications, allowing your application definitions, configurations, and environments to be declarative and version controlled. This helps to make these workflows automated, auditable, and easy to understand. 
+GitOps is becoming increasingly popular tool to manage Kubernetes components. It works by using Git as a single source of truth for declarative infrastructure and applications, allowing your application definitions, configurations, and environments to be declarative and version controlled. This helps to make these workflows automated, auditable, and easy to understand. 
 
 # Purpose of this Tutorial
-The intended use case for part 1 of this blog series is primarily to demonstrate how Gloo Mesh components can be deployed using a GitOps workflow (in this case Argo CD).
+The intended use case for part 1 of this blog series is primarily to demonstrate how Gloo Mesh components can be deployed using a GitOps workflow (in this case argocd).
 
-In this blog we will walk through the following steps:
-- Installing Argo CD
-- Installing and configuring Gloo Mesh
-- Installing Istio
-- Registering your clusters to Gloo Mesh
+In this blog we will walk through the following steps
+- Installing argocd
+- Installing and configuring gloo-mesh
+- Installing istio
+- Registering your clusters to gloo-mesh
 - Creating a Virtual Mesh across both clusters
 - Explore the Gloo Mesh Dashboard
 
+# High Level Architecture
+![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/arch1.png)
+
 # Prerequisites
-The tutorial is intended to be demonstrated using three Kubernetes clusters. The instructions have been tested locally on k3d + MetalLB setup as well as in EKS and GKE. The scope of this guide does not cover the installation and setup of Kubernetes, and expects users to provide this as a prerequisite. The instructions below expect the cluster contexts to be `mgmt`, `cluster1`, and `cluster2`. An example output below:
+The tutorial is intended to be demonstrated using three kubernetes clusters. The instructions have been tested on GKE. The scope of this guide does not cover the installation and setup of kubernetes, and expects users to provide this as a prerequisite. The instructions below expect the cluster contexts to be `mgmt`, `cluster1`, and `cluster2`. An example output below:
 ```
 % kubectl config get-contexts
-CURRENT   NAME        CLUSTER          AUTHINFO             NAMESPACE
-          cluster1    k3d-cluster1     admin@k3d-cluster1   
-          cluster2    k3d-cluster2     admin@k3d-cluster2   
-          mgmt        k3d-mgmt         admin@k3d-mgmt       
+CURRENT   NAME        CLUSTER                                            AUTHINFO                                           NAMESPACE
+          cluster1    gke_solo-workshops_us-central1-a_ly-gke-cluster1   gke_solo-workshops_us-central1-a_ly-gke-cluster1   
+          cluster2    gke_solo-workshops_us-central1-a_ly-gke-cluster2   gke_solo-workshops_us-central1-a_ly-gke-cluster2   
+*         mgmt        gke_solo-workshops_us-central1-a_ly-gke-mgmt       gke_solo-workshops_us-central1-a_ly-gke-mgmt     
 ```
 
 ## Installing argocd
-While in Argo CD it is possible for a single Argo CD instance to manage deployments across multiple clusters, for simplicity we will be deploying Argo CD to each cluster separately.
+Following best practice for gloo-mesh, we will be deploying argocd to our `mgmt` cluster, which will then manage our deployments on `cluster1` and `cluster2`
 
-Create the `argocd` namespace in each cluster
+Create the argocd namespace in mgmt cluster
 ```
 kubectl create namespace argocd --context mgmt
-kubectl create namespace argocd --context cluster1
-kubectl create namespace argocd --context cluster2
 ```
 
-The command below will deploy Argo CD 2.1.7 using the [non-HA YAML manifests](https://github.com/argoproj/argo-cd/releases)
+The command below will deploy argocd 2.1.7 using the [non-HA YAML manifests](https://github.com/argoproj/argo-cd/releases)
 ```
 until kubectl apply -k https://github.com/solo-io/gitops-library.git/argocd/overlay/default/ --context mgmt; do sleep 2; done
-until kubectl apply -k https://github.com/solo-io/gitops-library.git/argocd/overlay/default/ --context cluster1; do sleep 2; done
-until kubectl apply -k https://github.com/solo-io/gitops-library.git/argocd/overlay/default/ --context cluster2; do sleep 2; done
 ```
 
 Check to see argocd status
@@ -52,27 +51,61 @@ argocd-repo-server-6fd99dbbb5-xr8ld   1/1     Running   0          5m48s
 argocd-server-7dd7894bd7-t92rr        1/1     Running   0          5m48s
 ```
 
-We can also change the password to: `admin / solo.io` on all three clusters:
+We can also change the password to: `admin / solo.io`:
 ```
 # bcrypt(password)=$2a$10$79yaoOg9dL5MO8pn8hGqtO4xQDejSEVNWAGQR268JHLdrCw6UCYmy
 # password: solo.io
-kubectl --context ${CONTEXT} -n argocd patch secret argocd-secret \
+kubectl --context mgmt -n argocd patch secret argocd-secret \
   -p '{"stringData": {
     "admin.password": "$2a$10$79yaoOg9dL5MO8pn8hGqtO4xQDejSEVNWAGQR268JHLdrCw6UCYmy",
     "admin.passwordMtime": "'$(date +%FT%T%Z)'"
   }}'
 ```
 
-## Navigating to Argo CD UI
-At this point, we should be able to access our Argo CD server using port-forward at localhost:8080. Dont forget to input the context you want to view
+## Navigating to argocd UI
+At this point, we should be able to access our argocd server using port-forward at localhost:8080
 ```
-kubectl port-forward svc/argocd-server -n argocd 8080:443 --context <CONTEXT>
+kubectl port-forward svc/argocd-server -n argocd 9999:443 --context mgmt
 ```
 
-## Installing Gloo Mesh Management Plane
-Gloo Mesh can be installed and configured easily using Helm + Argo CD. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply add in your license key to the YAML below and deploy away! 
+## Login to argocd using CLI
+```
+argocd login localhost:9999
+```
 
-Note, the Gloo Mesh Management Plane is recommended to be in it's own `mgmt` cluster - but this is not a strict requirement.
+## add cluster1 and cluster2 to argocd
+```
+argocd cluster add cluster1
+argocd cluster add cluster2
+```
+
+Example output below:
+```
+% argocd cluster add cluster2                                                      
+WARNING: This will create a service account `argocd-manager` on the cluster referenced by context `cluster2` with full cluster level admin privileges. Do you want to continue [y/N]? y
+INFO[0002] ServiceAccount "argocd-manager" created in namespace "kube-system" 
+INFO[0003] ClusterRole "argocd-manager-role" created    
+INFO[0003] ClusterRoleBinding "argocd-manager-role-binding" created 
+Cluster 'https://199.223.234.166' added
+```
+
+## set cluster1 and cluster2 variables
+These variables will be used in our argo applications in the `spec.destination.server` parameter
+```
+cluster1=https://34.72.236.239
+cluster2=https://199.223.234.166
+```
+
+## Provide License Key variable
+Gloo Mesh Enterprise requires a Trial License Key:
+```
+LICENSE_KEY=<input_license_key_here>
+```
+
+## Installing Gloo Mesh
+Gloo Mesh can be installed and configured easily using Helm + Argocd. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply add in your license key to the YAML below and deploy away! 
+
+Note, the Gloo Mesh Control Plane is recommended to be in it's own `mgmt` cluster - but this is not a strict requirement.
 ```
 kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -91,7 +124,7 @@ spec:
     chart: gloo-mesh-enterprise
     helm:
       values: |
-        licenseKey: $LICENSE_KEY
+        licenseKey: ${LICENSE_KEY}
     repoURL: https://storage.googleapis.com/gloo-mesh-enterprise/gloo-mesh-enterprise
     targetRevision: 1.2.1
   syncPolicy:
@@ -103,7 +136,7 @@ spec:
 EOF
 ```
 
-You can check to see that the gloo mesh management plane is deployed:
+You can check to see that the gloo-mesh control plane is deployed:
 ```
 % kubectl get pods -n gloo-mesh --context mgmt   
 NAME                                     READY   STATUS    RESTARTS   AGE
@@ -115,21 +148,21 @@ prometheus-server-5bc557db5f-mp62j       2/2     Running   0          63s
 ```
 
 ## Installing Istio
-Here we will use Argo CD to demonstrate how to deploy and manage Istio on `cluster1` and `cluster2`. For our Istio deployment, we will be using the `IstioOperator` to showcase the integration of Argo CD with Operators in addition to Helm.
+Here we will use argocd to demonstrate how to deploy and manage Istio. For our Istio deployment we will be using the `IstioOperator` to showcase the integration of argocd with Operators in addition to Helm.
 
 First deploy the Istio Operator v1.11.4 to `cluster1`
 ```
-kubectl apply --context cluster1 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: istio-operator-helm
+  name: istio-operator-helm-cluster1
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster1}
     namespace: istio-operator
   project: default
   source:
@@ -139,7 +172,7 @@ spec:
     helm:
       parameters:
         - name: "hub"
-          value: "docker.io/istio"
+          value: "gcr.io/istio-enterprise"
         - name: "tag"
           value: "1.11.4"
         - name: "operatorNamespace"
@@ -163,17 +196,17 @@ EOF
 
 And next to `cluster2`
 ```
-kubectl apply --context cluster2 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: istio-operator-helm
+  name: istio-operator-helm-cluster2
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster2}
     namespace: istio-operator
   project: default
   source:
@@ -183,7 +216,7 @@ spec:
     helm:
       parameters:
         - name: "hub"
-          value: "docker.io/istio"
+          value: "gcr.io/istio-enterprise"
         - name: "tag"
           value: "1.11.4"
         - name: "operatorNamespace"
@@ -205,18 +238,18 @@ spec:
 EOF
 ```
 
-You can check to see that the Istio Operator is deployed:
+You can check to see that the istio operator is deployed:
 ```
 % kubectl get pods -n istio-operator --context cluster1
 NAME                              READY   STATUS    RESTARTS   AGE
 istio-operator-6f9dcd4469-hgsl9   1/1     Running   0          71s
 ```
 
-Now, lets deploy Istio 1.11.4
+Now lets deploy our Istio 1.11.4 clusters
 
 First cluster1:
 ```
-kubectl apply --context cluster1 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -231,7 +264,7 @@ spec:
     targetRevision: HEAD
     path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster1/
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster1}
     namespace: istio-system
   syncPolicy:
     automated:
@@ -244,7 +277,7 @@ EOF
 
 Next on cluster2:
 ```
-kubectl apply --context cluster2 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -259,7 +292,7 @@ spec:
     targetRevision: HEAD
     path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster2/
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster2}
     namespace: istio-system
   syncPolicy:
     automated:
@@ -270,7 +303,7 @@ spec:
 EOF
 ```
 
-For those who are curious, the Istio profile being deployed by Argo CD at the `path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster1/` is the one used for our Gloo Mesh workshops based on the `default` Istio profile:
+For those who are curious, the profile being deployed by argocd at the `path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster1/` is the one used for our gloo-mesh workshops based on the `default` Istio profile
 ```
 apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
@@ -346,7 +379,7 @@ spec:
       network: network1
 ```
 
-Check to see that Istio has been deployed
+Check to see that istio has been deployed
 ```
 % kubectl get pods -n istio-system --context cluster1
 NAME                                    READY   STATUS    RESTARTS   AGE
@@ -354,63 +387,8 @@ istiod-869d56698-54hzf                  1/1     Running   0          100s
 istio-ingressgateway-7cf4cd6fc6-trt9h   1/1     Running   0          70s
 ```
 
-## Enforce mTLS in our Istio Deployments
-The Istio default install sets mTLS to `PERMISSIVE` mode. Let's enforce `STRICT` mode instead
-
-For cluster1:
-```
-kubectl apply --context cluster1 -f- <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: strict-mtls
-  namespace: argocd
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/solo-io/gitops-library
-    targetRevision: HEAD
-    path: istio/overlay/mtls/strict/
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: istio-system
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
-EOF
-```
-
-For cluster2
-```
-kubectl apply --context cluster2 -f- <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: strict-mtls
-  namespace: argocd
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/solo-io/gitops-library
-    targetRevision: HEAD
-    path: istio/overlay/mtls/strict/
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: istio-system
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
-EOF
-```
-
 ## Register your clusters to Gloo Mesh with Helm + argocd
-First we want to create a `KubernetesCluster` resource to represent the remote clusters (`cluster1` and `cluster2`) and store relevant data, such as the remote cluster's local domain. The `metadata.name` of the resource must match the value for `relay.cluster` in the Helm chart, and the `spec.clusterDomain` must match the local cluster domain of the Kubernetes cluster.
+First we want to create a `KubernetesCluster` resouce to represent the remote cluster and store relevant data, such as the remote cluster's local domain. The `metadata.name` of the resource must match the value for `relay.cluster` in the Helm chart, and the `spec.clusterDomain` must match the local cluster domain of the Kubernetes cluster.
 
 First for cluster1
 ```
@@ -450,9 +428,9 @@ Grab External-IP of the enterprise-networking service in the mgmt plane as we wi
 SVC=$(kubectl --context mgmt -n gloo-mesh get svc enterprise-networking -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 ```
 
-Deploy the Gloo Mesh agent (enterprise-agent) on cluster1 using Argo CD
+Deploy enterprise-agent on cluster1 using argocd
 ```
-kubectl apply --context cluster1 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -460,7 +438,7 @@ metadata:
   namespace: argocd
 spec:
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster1}
     namespace: gloo-mesh
   source:
     repoURL: 'https://storage.googleapis.com/gloo-mesh-enterprise/enterprise-agent'
@@ -473,7 +451,7 @@ spec:
         - name: relay.cluster
           value: cluster1
         - name: relay.serverAddress
-          value: '$SVC:9900'
+          value: '${SVC}:9900'
         - name: relay.tokenSecret.namespace
           value: gloo-mesh
         - name: authority
@@ -490,9 +468,9 @@ spec:
 EOF
 ```
 
-Deploy enterprise-agent on cluster2 using Argo CD
+Deploy enterprise-agent on cluster2 using argocd
 ```
-kubectl apply --context cluster2 -f- <<EOF
+kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -500,7 +478,7 @@ metadata:
   namespace: argocd
 spec:
   destination:
-    server: https://kubernetes.default.svc
+    server: ${cluster2}
     namespace: gloo-mesh
   source:
     repoURL: 'https://storage.googleapis.com/gloo-mesh-enterprise/enterprise-agent'
@@ -531,7 +509,7 @@ EOF
 ```
 
 # Verifying the registration
-Verify that the relay agent pod has a status of `Running`
+Verify that the relay agent pod has a status of Running
 ```
 kubectl get pods -n gloo-mesh --context cluster1
 ```
@@ -574,7 +552,7 @@ Management Configuration
 ```
 
 ## Visualize in Gloo Mesh Dashboard
-Access the Gloo Mesh Dashboard at `http://localhost:8090`:
+access gloo mesh dashboard at `http://localhost:8090`:
 ```
 kubectl port-forward -n gloo-mesh svc/dashboard 8090
 ```
