@@ -97,7 +97,7 @@ Cluster 'https://199.223.234.166' added
 ```
 
 ### set cluster1 and cluster2 variables
-These variables will be used in our Argo applications in the `spec.destination.server` parameter
+These variables will be used in our Argo applications in the `spec.destination.server` parameter in the Argo Application to direct which cluster the app is deployed to
 ```
 cluster1=https://34.72.236.239
 cluster2=https://199.223.234.166
