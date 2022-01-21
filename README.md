@@ -1,33 +1,33 @@
 # GitOps with ArgoCD and Gloo Mesh (part 1)
 
-## Introduction
-GitOps is becoming increasingly popular tool to manage Kubernetes components. It works by using Git as a single source of truth for declarative infrastructure and applications, allowing your application definitions, configurations, and environments to be declarative and version controlled. This helps to make these workflows automated, auditable, and easy to understand. 
+# Introduction
+GitOps is becoming increasingly popular approach to manage Kubernetes components. It works by using Git as a single source of truth for declarative infrastructure and applications, allowing your application definitions, configurations, and environments to be declarative and version controlled. This helps to make these workflows automated, auditable, and easy to understand.
 
-## Purpose of this Tutorial
-The intended use case for part 1 of this blog series is primarily to demonstrate how Gloo Mesh components can be deployed using a GitOps workflow (in this case argocd).
+# Purpose of this Tutorial
+The intended use case for part 1 of this blog series is primarily to demonstrate how Gloo Mesh components can be deployed using a GitOps workflow (in this case Argo CD).
 
-In this blog we will walk through the following steps
-- Installing argocd
-- Installing and configuring gloo-mesh
-- Installing istio
-- Registering your clusters to gloo-mesh
+In this blog we will walk through the following steps:
+- Installing Argo CD
+- Installing and configuring Gloo Mesh
+- Installing Istio
+- Registering your clusters to Gloo Mesh
 - Creating a Virtual Mesh across both clusters
 - Explore the Gloo Mesh Dashboard
 
-## High Level Architecture
+# High Level Architecture
 ![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/arch2.png)
 
-## Prerequisites
-The tutorial is intended to be demonstrated using three kubernetes clusters. The instructions have been tested on GKE. The scope of this guide does not cover the installation and setup of kubernetes, and expects users to provide this as a prerequisite. The instructions below expect the cluster contexts to be `mgmt`, `cluster1`, and `cluster2`. An example output below:
+# Prerequisites
+The tutorial is intended to be demonstrated using three Kubernetes clusters. The instructions have been tested locally on k3d + MetalLB setup as well as in EKS and GKE. The scope of this guide does not cover the installation and setup of Kubernetes, and expects users to provide this as a prerequisite. The instructions below expect the cluster contexts to be `mgmt`, `cluster1`, and `cluster2`. An example output below:
 ```
 % kubectl config get-contexts
-CURRENT   NAME        CLUSTER                                            AUTHINFO                                           NAMESPACE
-          cluster1    gke_solo-workshops_us-central1-a_ly-gke-cluster1   gke_solo-workshops_us-central1-a_ly-gke-cluster1   
-          cluster2    gke_solo-workshops_us-central1-a_ly-gke-cluster2   gke_solo-workshops_us-central1-a_ly-gke-cluster2   
-*         mgmt        gke_solo-workshops_us-central1-a_ly-gke-mgmt       gke_solo-workshops_us-central1-a_ly-gke-mgmt     
+CURRENT   NAME        CLUSTER          AUTHINFO             NAMESPACE
+          cluster1    k3d-cluster1     admin@k3d-cluster1   
+          cluster2    k3d-cluster2     admin@k3d-cluster2   
+          mgmt        k3d-mgmt         admin@k3d-mgmt       gke_solo-workshops_us-central1-a_ly-gke-mgmt     
 ```
 
-### Installing argocd
+### Installing Argo CD	
 Following best practice for gloo-mesh, we will be deploying argocd to our `mgmt` cluster, which will then manage our deployments on `cluster1` and `cluster2`
 
 Create the argocd namespace in mgmt cluster
@@ -62,18 +62,18 @@ kubectl --context mgmt -n argocd patch secret argocd-secret \
   }}'
 ```
 
-### Navigating to argocd UI
-At this point, we should be able to access our argocd server using port-forward at localhost:9999
+### Navigating to Argo CD UI
+At this point, we should be able to access our Argo CD server using port-forward at localhost:9999
 ```
 kubectl port-forward svc/argocd-server -n argocd 9999:443 --context mgmt
 ```
 
-### Login to argocd using CLI
+### Login to Argo CD using CLI
 ```
 argocd login localhost:9999
 ```
 
-### add cluster1 and cluster2 to argocd
+### add cluster1 and cluster2 to Argo CD
 ```
 argocd cluster add cluster1
 argocd cluster add cluster2
@@ -97,7 +97,7 @@ Cluster 'https://199.223.234.166' added
 ```
 
 ### set cluster1 and cluster2 variables
-These variables will be used in our argo applications in the `spec.destination.server` parameter
+These variables will be used in our Argo applications in the `spec.destination.server` parameter
 ```
 cluster1=https://34.72.236.239
 cluster2=https://199.223.234.166
@@ -110,7 +110,7 @@ LICENSE_KEY=<input_license_key_here>
 ```
 
 ## Installing Gloo Mesh
-Gloo Mesh can be installed and configured easily using Helm + Argocd. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply deploy the manifest below
+Gloo Mesh can be installed and configured easily using Helm + Argo CD. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply deploy the manifest below
 ```
 kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -141,7 +141,7 @@ spec:
 EOF
 ```
 
-You can check to see that the gloo-mesh control plane is deployed:
+You can check to see that the gloo mesh management plane is deployed:
 ```
 % kubectl get pods -n gloo-mesh --context mgmt   
 NAME                                     READY   STATUS    RESTARTS   AGE
@@ -153,7 +153,7 @@ prometheus-server-5bc557db5f-mp62j       2/2     Running   0          63s
 ```
 
 ## Installing Istio
-Here we will use argocd to demonstrate how to deploy and manage Istio. For our Istio deployment we will be using the `IstioOperator` to showcase the integration of argocd with Operators in addition to Helm.
+Here we will use Argo CD to demonstrate how to deploy and manage Istio on `cluster1` and `cluster2`. For our Istio deployment, we will be using the `IstioOperator` to showcase the integration of Argo CD with Operators in addition to Helm.
 
 First deploy the Istio Operator v1.11.4 to `cluster1`
 ```
@@ -243,7 +243,7 @@ spec:
 EOF
 ```
 
-You can check to see that the istio operator is deployed:
+You can check to see that the Istio Operator is deployed:
 ```
 % kubectl get pods -n istio-operator --context cluster1
 NAME                              READY   STATUS    RESTARTS   AGE
@@ -254,7 +254,7 @@ NAME                             READY   STATUS    RESTARTS   AGE
 istio-operator-5c686c7c5-vx7vl   1/1     Running   0          90s
 ```
 
-Now lets deploy our Istio 1.11.4 clusters
+Now, lets deploy Istio 1.11.4
 
 First cluster1:
 ```
@@ -312,7 +312,7 @@ spec:
 EOF
 ```
 
-For those who are curious, the profile being deployed by argocd at the `path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster1/` is the one used in our [gloo-mesh workshop](https://workshops.solo.io/gloo-workshops/gloo-mesh#lab-3-deploy-istio) which is based on the `default` Istio profile
+For those who are curious, the Istio profile being deployed by Argo CD at the `path: istio/overlay/1-11-4/gm-istio-profiles/workshop/cluster1/` is the one used for our Gloo Mesh workshops based on the `default` Istio profile:
 ```
 apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
@@ -388,7 +388,7 @@ spec:
       network: network1
 ```
 
-Check to see that istio has been deployed
+Check to see that Istio has been deployed
 ```
 % kubectl get pods -n istio-system --context cluster1
 NAME                                    READY   STATUS    RESTARTS   AGE
@@ -401,8 +401,8 @@ istio-ingressgateway-74df747fdb-vp5zt   1/1     Running   0          120s
 istiod-65c8d79996-k9bsh                 1/1     Running   0          90s
 ```
 
-## Register your clusters to Gloo Mesh with Helm + argocd
-First we want to create a `KubernetesCluster` resouce to represent the remote cluster and store relevant data, such as the remote cluster's local domain. The `metadata.name` of the resource must match the value for `relay.cluster` in the Helm chart, and the `spec.clusterDomain` must match the local cluster domain of the Kubernetes cluster.
+## Register your clusters to Gloo Mesh with Helm + Argo CD
+First we want to create a `KubernetesCluster` resource to represent the remote clusters (`cluster1` and `cluster2`) and store relevant data, such as the remote cluster's local domain. The `metadata.name` of the resource must match the value for `relay.cluster` in the Helm chart, and the `spec.clusterDomain` must match the local cluster domain of the Kubernetes cluster.
 
 First for cluster1
 ```
@@ -442,7 +442,7 @@ Grab External-IP of the enterprise-networking service in the mgmt plane as we wi
 SVC=$(kubectl --context mgmt -n gloo-mesh get svc enterprise-networking -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 ```
 
-Deploy enterprise-agent on cluster1 using argocd
+Deploy the Gloo Mesh agent (enterprise-agent) on cluster1 using Argo CD
 ```
 kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -482,7 +482,7 @@ spec:
 EOF
 ```
 
-Deploy enterprise-agent on cluster2 using argocd
+Deploy enterprise-agent on cluster2 using Argo CD
 ```
 kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -522,13 +522,13 @@ spec:
 EOF
 ```
 
-### Verifying the registration
-Verify that the relay agent pod has a status of Running
+# Verifying the registration
+Verify that the relay agent pod has a status of `Running`
 ```
 kubectl get pods -n gloo-mesh --context cluster1
 ```
 
-### Verifying the registration using meshctl
+# Verifying the registration using meshctl
 
 First install meshctl if you haven't done so already
 ```
@@ -574,8 +574,8 @@ Management Configuration
 🟢 Gloo Mesh Networking Configuration Resources
 ```
 
-## Visualize in Gloo Mesh Dashboard
-access gloo mesh dashboard at `http://localhost:8090`:
+# Visualize in Gloo Mesh Dashboard
+Access Gloo Mesh Dashboard at `http://localhost:8090`:
 ```
 kubectl port-forward -n gloo-mesh svc/dashboard 8090
 ```
@@ -583,7 +583,7 @@ kubectl port-forward -n gloo-mesh svc/dashboard 8090
 At this point, you should have Gloo Mesh installed and two clusters with Istio registered to Gloo Mesh!
 ![](https://github.com/ably77/gloo-mesh-argocd-blog/blob/main/images/gm1.png)
 
-## Deploy and Configure your VirtualMesh
+# Deploy and Configure your VirtualMesh
 Deploy VirtualMesh to mgmt cluster to unify our two meshes on `cluster1` and `cluster2`
 ```
 kubectl apply --context mgmt -f- <<EOF
