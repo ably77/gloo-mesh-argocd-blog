@@ -24,18 +24,18 @@ The tutorial is intended to be demonstrated using three Kubernetes clusters. The
 CURRENT   NAME        CLUSTER          AUTHINFO             NAMESPACE
           cluster1    k3d-cluster1     admin@k3d-cluster1   
           cluster2    k3d-cluster2     admin@k3d-cluster2   
-          mgmt        k3d-mgmt         admin@k3d-mgmt       gke_solo-workshops_us-central1-a_ly-gke-mgmt     
+          mgmt        k3d-mgmt         admin@k3d-mgmt       
 ```
 
 ### Installing Argo CD	
-Following best practice for gloo-mesh, we will be deploying argocd to our `mgmt` cluster, which will then manage our deployments on `cluster1` and `cluster2`
+Following best practice for gloo-mesh, we will be deploying Argo CD to our `mgmt` cluster, which will then manage our deployments on `cluster1` and `cluster2`
 
-Create the argocd namespace in mgmt cluster
+Create the Argo CD namespace in mgmt cluster
 ```
 kubectl create namespace argocd --context mgmt
 ```
 
-The command below will deploy argocd 2.1.7 using the [non-HA YAML manifests](https://github.com/argoproj/argo-cd/releases)
+The command below will deploy Argo CD 2.1.7 using the [non-HA YAML manifests](https://github.com/argoproj/argo-cd/releases)
 ```
 until kubectl apply -k https://github.com/solo-io/gitops-library.git/argocd/overlay/default/ --context mgmt; do sleep 2; done
 ```
@@ -110,7 +110,7 @@ LICENSE_KEY=<input_license_key_here>
 ```
 
 ## Installing Gloo Mesh
-Gloo Mesh can be installed and configured easily using Helm + Argo CD. To install Gloo Mesh Enterprise 1.2.1 with the default helm values, simply deploy the manifest below
+Gloo Mesh can be installed and configured easily using Helm + Argo CD. To install Gloo Mesh Enterprise 1.2.9 with the default helm values, simply deploy the manifest below
 ```
 kubectl apply --context mgmt -f- <<EOF
 apiVersion: argoproj.io/v1alpha1
@@ -131,7 +131,7 @@ spec:
       values: |
         licenseKey: ${LICENSE_KEY}
     repoURL: https://storage.googleapis.com/gloo-mesh-enterprise/gloo-mesh-enterprise
-    targetRevision: 1.2.1
+    targetRevision: 1.2.9
   syncPolicy:
     automated:
       prune: true
@@ -141,7 +141,7 @@ spec:
 EOF
 ```
 
-You can check to see that the gloo mesh management plane is deployed:
+You can check to see that the Gloo Mesh Management Plane is deployed:
 ```
 % kubectl get pods -n gloo-mesh --context mgmt   
 NAME                                     READY   STATUS    RESTARTS   AGE
@@ -153,7 +153,7 @@ prometheus-server-5bc557db5f-mp62j       2/2     Running   0          63s
 ```
 
 ## Installing Istio
-Here we will use Argo CD to demonstrate how to deploy and manage Istio on `cluster1` and `cluster2`. For our Istio deployment, we will be using the `IstioOperator` to showcase the integration of Argo CD with Operators in addition to Helm.
+Here we will use Argo CD to demonstrate how to deploy and manage Istio on `cluster1` and `cluster2`. For our Istio deployment, we will be using the `IstioOperator` to showcase the integration of Argo CD with Operators in addition to Helm. Note that the `spec.destination.server` value is set to our variable `${cluster1}` which is the Kubernetes cluster we are deploying on.
 
 First deploy the Istio Operator v1.11.4 to `cluster1`
 ```
@@ -456,7 +456,7 @@ spec:
     namespace: gloo-mesh
   source:
     repoURL: 'https://storage.googleapis.com/gloo-mesh-enterprise/enterprise-agent'
-    targetRevision: 1.2.1
+    targetRevision: 1.2.9
     chart: enterprise-agent
     helm:
       valueFiles:
@@ -496,7 +496,7 @@ spec:
     namespace: gloo-mesh
   source:
     repoURL: 'https://storage.googleapis.com/gloo-mesh-enterprise/enterprise-agent'
-    targetRevision: 1.2.1
+    targetRevision: 1.2.9
     chart: enterprise-agent
     helm:
       valueFiles:
@@ -532,7 +532,7 @@ kubectl get pods -n gloo-mesh --context cluster1
 
 First install meshctl if you haven't done so already
 ```
-export GLOO_MESH_VERSION=v1.2.1
+export GLOO_MESH_VERSION=v1.2.9
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
